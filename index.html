@@ -267,6 +267,7 @@ function consumed(){
   const c={};S.permisos.forEach(p=>c[p.id]=0);
   const fm=fmap(S.year,S.fc,S.fr);
   Object.entries(S.marcados).forEach(([k,v])=>{
+    if(!k.startsWith(S.year+'-'))return;
     if(fm[k])return;
     const pid=typeof v==='object'?v.pid:v;
     const hrs=typeof v==='object'?v.h:null;
