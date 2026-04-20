@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calendari Laboral · UPC</title>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{--upc:#007BC4;--upc-dark:#005f99;--upc-light:#e6f3fb;--upc-mid:#cce5f5;--bg:#f2f4f7;--surface:#fff;--surface2:#f7f9fb;--border:rgba(0,123,196,0.13);--border2:rgba(0,123,196,0.25);--text:#1a2733;--text2:#4a6070;--text3:#8aa0b0;--r:10px;--rsm:7px}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1c26;--surface:#162230;--surface2:#1c2d3d;--border:rgba(0,123,196,0.2);--border2:rgba(0,123,196,0.38);--text:#e8f0f6;--text2:#7fa8c4;--text3:#3d6480;--upc-light:#0a2036;--upc-mid:#0d2d46}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Open Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px}
+.upc-bar{background:var(--surface);border-bottom:3px solid var(--upc);padding:13px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.upc-logo{display:flex;align-items:center;gap:13px}
+.upc-circle{width:46px;height:46px;border-radius:50%;background:var(--upc);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.upc-wm{line-height:1.2}
+.upc-wm b{display:block;font-size:11px;font-weight:700;color:var(--upc);text-transform:uppercase;letter-spacing:0.3px}
+.upc-wm span{display:block;font-size:9px;color:var(--text2);text-transform:uppercase;letter-spacing:0.2px}
+.yr-ctrl{display:flex;align-items:center;gap:3px;background:var(--upc-light);border:1px solid var(--border2);border-radius:var(--rsm);padding:3px}
+.yr-btn{width:30px;height:30px;border:none;background:transparent;cursor:pointer;border-radius:5px;color:var(--upc);font-size:17px;display:flex;align-items:center;justify-content:center;font-weight:700;transition:background .15s}
+.yr-btn:hover{background:rgba(0,123,196,.15)}
+.yr-num{font-size:15px;font-weight:700;min-width:44px;text-align:center;color:var(--upc);font-family:monospace}
+.app-head{text-align:right}
+.app-head h2{font-size:15px;font-weight:700;color:var(--text)}
+.app-head p{font-size:11px;color:var(--text2)}
+.app{max-width:980px;margin:0 auto;padding:22px 18px 60px}
+.tabs{display:flex;margin-bottom:20px;border-bottom:2px solid var(--border2)}
+.tab{padding:9px 18px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;border:none;background:transparent;border-bottom:3px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s;font-family:'Open Sans',sans-serif;letter-spacing:.1px}
+.tab:hover{color:var(--upc)}
+.tab.active{color:var(--upc);border-bottom:3px solid var(--upc)}
+.view{display:none}.view.active{display:block}
+.p-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:10px;margin-bottom:20px}
+.pc{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--cc,#007BC4);border-radius:var(--r);padding:13px 15px}
+.ph{display:flex;align-items:center;gap:7px;margin-bottom:9px}
+.pdot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.pname{font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.4px;line-height:1.3}
+.pnums{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
+.prest{font-size:21px;font-weight:700;color:var(--text)}
+.prest s{font-size:12px;font-weight:400;color:var(--text2);margin-left:2px;text-decoration:none}
+.pused{font-size:11px;color:var(--text3);font-family:monospace}
+.pbg{height:3px;background:var(--upc-mid);border-radius:2px;overflow:hidden}
+.pb{height:3px;border-radius:2px;transition:width .4s}
+.leg{display:flex;flex-wrap:wrap;gap:11px;margin-bottom:13px;padding:9px 13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm)}
+.li{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.ld{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.cgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:640px){.cgrid{grid-template-columns:repeat(2,1fr)}}
+.mo{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:11px}
+.mn{font-size:10px;font-weight:700;color:var(--upc);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid var(--border)}
+.dh{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;margin-bottom:1px}
+.dl{font-size:8px;color:var(--text3);text-align:center;font-weight:700;text-transform:uppercase;letter-spacing:.2px}
+.dg{display:grid;grid-template-columns:repeat(7,1fr);gap:1px}
+.dc{font-size:10px;text-align:center;padding:2px 1px;border-radius:3px;cursor:pointer;color:var(--text);min-height:18px;line-height:18px;transition:background .1s;user-select:none}
+.dc:hover:not(.de):not(.df):not(.dp){background:var(--upc-light)}
+.de{cursor:default}.dw{color:var(--text3)}.df{color:#fff;font-weight:700}.dp{color:#fff;font-weight:700}
+.dt{outline:2px solid var(--upc);outline-offset:-1px;font-weight:700}
+.tip{position:fixed;background:var(--text);color:var(--bg);padding:4px 10px;border-radius:5px;font-size:11px;font-weight:600;pointer-events:none;z-index:9999;white-space:nowrap;display:none}
+.pkr{position:fixed;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:6px;z-index:9999;box-shadow:0 8px 32px rgba(0,123,196,.15);min-width:215px;display:none}
+.pkt{font-size:9px;font-weight:700;color:var(--upc);text-transform:uppercase;letter-spacing:.8px;padding:4px 8px 6px}
+.pko{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:5px;cursor:pointer;font-size:13px;color:var(--text);transition:background .1s}
+.pko:hover{background:var(--upc-light)}
+.pkd{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.pkdiv{height:1px;background:var(--border);margin:4px 0}
+.pkc{padding:7px 8px;font-size:12px;color:var(--text2);cursor:pointer;border-radius:5px;transition:background .1s}
+.pkc:hover{background:var(--upc-light)}
+.sl{font-size:10px;font-weight:700;color:var(--upc);text-transform:uppercase;letter-spacing:.7px;margin-bottom:9px}
+.ibox{background:var(--upc-light);border:1px solid var(--border2);border-left:3px solid var(--upc);border-radius:var(--rsm);padding:10px 13px;font-size:12px;color:var(--text2);margin-bottom:14px;line-height:1.6}
+.ar{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center}
+.ar input{height:36px;border:1px solid var(--border2);border-radius:var(--rsm);padding:0 11px;font-size:13px;color:var(--text);background:var(--surface);font-family:'Open Sans',sans-serif;outline:none}
+.ar input:focus{border-color:var(--upc)}
+.ar input[type=text]{flex:1;min-width:170px}
+.btn{height:36px;padding:0 15px;font-size:13px;font-weight:600;border:1px solid var(--border2);border-radius:var(--rsm);cursor:pointer;background:var(--surface);color:var(--text);font-family:'Open Sans',sans-serif;transition:all .15s;white-space:nowrap}
+.btn:hover{background:var(--upc-light)}
+.btnp{background:var(--upc)!important;color:#fff!important;border-color:var(--upc)!important}
+.btnp:hover{background:var(--upc-dark)!important;border-color:var(--upc-dark)!important}
+.fl{display:flex;flex-direction:column;gap:5px}
+.fr{display:flex;align-items:center;gap:11px;padding:9px 13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--rsm);transition:opacity .2s}
+.fr.removed{opacity:.35}
+.fd{font-family:monospace;font-size:12px;color:var(--text2);min-width:78px;font-weight:600}
+.fn{font-size:13px;color:var(--text);flex:1}
+.ftag{font-size:9px;font-weight:700;padding:2px 6px;border-radius:3px;margin-left:5px;text-transform:uppercase;letter-spacing:.4px}
+.tss{background:var(--upc-light);color:var(--upc)}
+.tcu{background:var(--surface2);color:var(--text2)}
+.fdel{cursor:pointer;font-size:14px;color:var(--text3);width:26px;height:26px;display:flex;align-items:center;justify-content:center;border-radius:5px;transition:all .1s;flex-shrink:0}
+.fdel:hover{background:#fee2e2;color:#dc2626}
+.fdel.restore:hover{background:var(--upc-light);color:var(--upc)}
+.cl{display:flex;flex-direction:column;gap:7px;margin-bottom:18px}
+.cr{display:flex;align-items:center;gap:11px;padding:11px 15px;background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--rc,#007BC4);border-radius:var(--rsm);flex-wrap:wrap}
+.cdot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.cname{font-size:13px;font-weight:600;color:var(--text);flex:1;min-width:150px}
+.cfi{display:flex;align-items:center;gap:7px}
+.cfi label{font-size:10px;color:var(--text2);font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.cfi input{width:68px;height:33px;border:1px solid var(--border2);border-radius:var(--rsm);padding:0 9px;font-size:14px;font-family:monospace;font-weight:700;text-align:center;color:var(--upc);background:var(--upc-light);outline:none}
+.cfi input:focus{border-color:var(--upc)}
+.sr{display:flex;align-items:center;gap:11px}
+.sok{font-size:12px;font-weight:600;color:var(--upc);opacity:0;transition:opacity .3s}
+.sok.show{opacity:1}
+.exs{margin-top:26px;padding-top:20px;border-top:1px solid var(--border)}
+.exs p{font-size:12px;color:var(--text2);margin-bottom:11px;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="upc-bar">
+  <div class="upc-logo">
+    <div class="upc-circle">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="6" cy="6" r="2.2" fill="white"/><circle cx="14" cy="6" r="2.2" fill="white"/><circle cx="22" cy="6" r="2.2" fill="white"/>
+        <circle cx="6" cy="14" r="2.2" fill="white"/><circle cx="14" cy="14" r="2.2" fill="white"/><circle cx="22" cy="14" r="2.2" fill="white"/>
+        <circle cx="6" cy="22" r="2.2" fill="white"/><circle cx="14" cy="22" r="2.2" fill="white"/><circle cx="22" cy="22" r="2.2" fill="white"/>
+      </svg>
+    </div>
+    <div class="upc-wm">
+      <b>Universitat Politècnica de Catalunya</b>
+      <span>BarcelonaTech</span>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+    <div class="app-head">
+      <h2>Calendari Laboral</h2>
+      <p>Gestió de permisos i festius</p>
+    </div>
+    <div class="yr-ctrl">
+      <button class="yr-btn" id="yr-prev">&#8249;</button>
+      <span class="yr-num" id="yr-label">2026</span>
+      <button class="yr-btn" id="yr-next">&#8250;</button>
+    </div>
+  </div>
+</div>
+
+<div class="app">
+  <div class="tabs">
+    <button class="tab active" data-tab="cal">Calendari</button>
+    <button class="tab" data-tab="fest">Festius</button>
+    <button class="tab" data-tab="cfg">Configuració</button>
+  </div>
+
+  <div class="view active" id="view-cal">
+    <div class="leg" id="leg"></div>
+    <div class="p-row" id="p-row"></div>
+    <div class="cgrid" id="cgrid"></div>
+  </div>
+
+  <div class="view" id="view-fest">
+    <div class="ibox">Els festius nacionals i catalans es generen automàticament per a l'any seleccionat, incloent-hi el Divendres Sant i el Dilluns de Pasqua calculats per algoritme. Pots eliminar qualsevol (queda restaurable) o afegir-ne de propis.</div>
+    <div class="sl">Afegir festiu</div>
+    <div class="ar">
+      <input type="date" id="nd" />
+      <input type="text" id="nn" placeholder="Nom del festiu" />
+      <button class="btn btnp" id="btn-add">Afegir</button>
+    </div>
+    <div class="sl">Festius de l'any <span id="yr-f"></span></div>
+    <div class="fl" id="fl"></div>
+  </div>
+
+  <div class="view" id="view-cfg">
+    <div class="ibox">Ajusta els dies i hores assignats a cada tipus de permís. Aquests valors poden canviar cada any segons conveni. Els canvis es desen al navegador.</div>
+    <div class="sl">Permisos i bosses</div>
+    <div class="cl" id="cl"></div>
+    <div class="sr">
+      <button class="btn btnp" id="btn-save">Desar configuració</button>
+      <span class="sok" id="sok">✓ Desat</span>
+    </div>
+    <div class="exs">
+      <div class="sl">Exportar / importar dades</div>
+      <p>Exporta totes les dades (marcats, festius, configuració) a un fitxer JSON per fer còpia de seguretat o traslladar a un altre dispositiu.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="btn-exp">Exportar JSON</button>
+        <button class="btn" id="btn-imp">Importar JSON</button>
+        <input type="file" id="fi" accept=".json" style="display:none">
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tip" id="tip"></div>
+<div class="pkr" id="pkr"></div>
+
+<script>
+const SK='cal_laboral_upc_v1';
+const DP=[
+  {id:'vac',    name:'Vacances',                   total:22,unidad:'día', color:'#007BC4'},
+  {id:'va',     name:'Vacances antiguitat',         total:3, unidad:'día', color:'#1ABC9C'},
+  {id:'ap',     name:'Assumptes propis',            total:10,unidad:'día', color:'#8E44AD'},
+  {id:'apa',    name:'Assumptes propis antiguitat', total:5, unidad:'día', color:'#E67E22'},
+  {id:'bolsa',  name:"Bossa d'hores",               total:64,unidad:'hora',color:'#E74C3C'}
+];
+const FF=[
+  {dm:'01-01',name:'Any nou'},{dm:'01-06',name:'Reis'},{dm:'05-01',name:'Festa del treball'},
+  {dm:'08-15',name:'Assumpció'},{dm:'09-11',name:'Diada de Catalunya'},{dm:'09-24',name:'La Mercè'},
+  {dm:'10-12',name:'Festa nacional'},{dm:'11-01',name:'Tots els sants'},{dm:'12-06',name:'Constitució'},
+  {dm:'12-08',name:'Immaculada'},{dm:'12-25',name:'Nadal'},{dm:'12-26',name:'Sant Esteve'}
+];
+const MN=['gener','febrer','març','abril','maig','juny','juliol','agost','setembre','octubre','novembre','desembre'];
+const DN=['Dl','Dt','Dc','Dj','Dv','Ds','Dg'];
+
+function easter(y){
+  const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,
+    f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),
+    h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,
+    l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),
+    mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;
+  return new Date(y,mo-1,da);
+}
+function getSS(y){
+  const e=easter(y),fmt=d=>`${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  const dv=new Date(e);dv.setDate(e.getDate()-2);
+  const dl=new Date(e);dl.setDate(e.getDate()+1);
+  return [{dm:fmt(dv),name:'Divendres Sant',ss:true},{dm:fmt(dl),name:'Dilluns de Pasqua',ss:true}];
+}
+function festYear(y,ext,rem){
+  const base=FF.map(f=>({key:`${y}-${f.dm}`,name:f.name,fixed:true}));
+  const ss=getSS(y).map(f=>({key:`${y}-${f.dm}`,name:f.name,fixed:true,ss:true}));
+  const all=[...base,...ss];
+  (ext||[]).forEach(e=>{if(e.year===y&&!all.find(a=>a.key===e.key))all.push({key:e.key,name:e.name,custom:true})});
+  const r=rem||[];
+  return{all,active:all.filter(f=>!r.includes(f.key))};
+}
+function fmap(y,ext,rem){const m={};festYear(y,ext,rem).active.forEach(f=>m[f.key]=f.name);return m;}
+
+function load(){try{const s=localStorage.getItem(SK);if(s)return JSON.parse(s);}catch(e){}return null;}
+function save(s){try{localStorage.setItem(SK,JSON.stringify(s));}catch(e){}}
+
+let S={year:new Date().getFullYear(),permisos:JSON.parse(JSON.stringify(DP)),marcados:{},fc:[],fr:[]};
+const sv=load();
+if(sv){
+  if(sv.year)S.year=sv.year;
+  if(sv.permisos)S.permisos=sv.permisos;
+  if(sv.marcados)S.marcados=sv.marcados;
+  if(sv.fc)S.fc=sv.fc;
+  if(sv.fr)S.fr=sv.fr;
+}
+function persist(){save({year:S.year,permisos:S.permisos,marcados:S.marcados,fc:S.fc,fr:S.fr});}
+
+function consumed(){
+  const c={};S.permisos.forEach(p=>c[p.id]=0);
+  const fm=fmap(S.year,S.fc,S.fr);
+  Object.entries(S.marcados).forEach(([k,pid])=>{if(!fm[k]&&c[pid]!==undefined)c[pid]++;});
+  return c;
+}
+
+function rLeg(){
+  const el=document.getElementById('leg');
+  let h=`<div class="li"><span class="ld" style="background:#E74C3C"></span>Festiu</div>`;
+  S.permisos.forEach(p=>h+=`<div class="li"><span class="ld" style="background:${p.color}"></span>${p.name}</div>`);
+  el.innerHTML=h;
+}
+
+function rCards(){
+  const el=document.getElementById('p-row'),c=consumed();
+  let h='';
+  S.permisos.forEach(p=>{
+    const cs=c[p.id]||0,rs=Math.max(0,p.total-cs),pct=p.total>0?Math.min(100,Math.round(cs/p.total*100)):0,u=p.unidad==='hora'?'h':'d';
+    h+=`<div class="pc" style="--cc:${p.color}">
+      <div class="ph"><span class="pdot" style="background:${p.color}"></span><span class="pname">${p.name}</span></div>
+      <div class="pnums"><span class="prest">${rs}<s> ${u}</s></span><span class="pused">${cs}/${p.total}</span></div>
+      <div class="pbg"><div class="pb" style="width:${pct}%;background:${p.color}"></div></div>
+    </div>`;
+  });
+  el.innerHTML=h;
+}
+
+function rCal(){
+  const el=document.getElementById('cgrid'),fm=fmap(S.year,S.fc,S.fr);
+  const td=new Date(),tk=`${td.getFullYear()}-${String(td.getMonth()+1).padStart(2,'0')}-${String(td.getDate()).padStart(2,'0')}`;
+  let h='';
+  for(let m=0;m<12;m++){
+    const fd=new Date(S.year,m,1).getDay(),off=(fd+6)%7,days=new Date(S.year,m+1,0).getDate();
+    h+=`<div class="mo"><div class="mn">${MN[m]}</div><div class="dh">${DN.map(d=>`<div class="dl">${d}</div>`).join('')}</div><div class="dg">`;
+    for(let i=0;i<off;i++)h+=`<div class="dc de"></div>`;
+    for(let d=1;d<=days;d++){
+      const dw=new Date(S.year,m,d).getDay(),we=dw===0||dw===6;
+      const k=`${S.year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const fest=fm[k],marc=S.marcados[k],perm=marc?S.permisos.find(p=>p.id===marc):null;
+      let bg='',cls='dc';
+      if(fest){bg='#E74C3C';cls+=' df';}else if(perm){bg=perm.color;cls+=' dp';}else if(we)cls+=' dw';
+      if(k===tk)cls+=' dt';
+      h+=`<div class="${cls}" style="${bg?'background:'+bg+';':''}" data-k="${k}" data-f="${fest||''}" data-p="${marc||''}">${d}</div>`;
+    }
+    h+=`</div></div>`;
+  }
+  el.innerHTML=h;
+  el.querySelectorAll('.dc:not(.de)').forEach(c=>{
+    c.addEventListener('mouseenter',sTip);c.addEventListener('mouseleave',hTip);c.addEventListener('click',hClick);
+  });
+}
+
+const tip=document.getElementById('tip');
+function sTip(e){
+  const f=e.target.dataset.f,p=e.target.dataset.p;let t='';
+  if(f)t=f;else if(p){const x=S.permisos.find(x=>x.id===p);if(x)t=x.name;}
+  if(!t)return;
+  tip.textContent=t;tip.style.display='block';tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-30)+'px';
+}
+function hTip(){tip.style.display='none';}
+
+const pkr=document.getElementById('pkr');let pk=null;
+function hClick(e){if(e.target.dataset.f)return;pk=e.target.dataset.k;sPicker(e.clientX,e.clientY,pk);e.stopPropagation();}
+function sPicker(x,y,k){
+  const cur=S.marcados[k]||null;
+  let h=`<div class="pkt">Assignar permís</div>`;
+  S.permisos.forEach(p=>{
+    h+=`<div class="pko" style="${cur===p.id?'font-weight:700;':''}" data-pid="${p.id}"><span class="pkd" style="background:${p.color}"></span>${p.name}</div>`;
+  });
+  if(cur)h+=`<div class="pkdiv"></div><div class="pkc" id="pkc">Treure permís</div>`;
+  pkr.innerHTML=h;
+  const vw=window.innerWidth,vh=window.innerHeight,pw=220,ph=S.permisos.length*36+70;
+  pkr.style.left=Math.min(x+4,vw-pw-8)+'px';pkr.style.top=Math.min(y+4,vh-ph-8)+'px';pkr.style.display='block';
+  pkr.querySelectorAll('.pko').forEach(o=>o.addEventListener('click',()=>{S.marcados[pk]=o.dataset.pid;persist();cPicker();rAll();}));
+  const cl=pkr.querySelector('#pkc');if(cl)cl.addEventListener('click',()=>{delete S.marcados[pk];persist();cPicker();rAll();});
+}
+function cPicker(){pkr.style.display='none';pk=null;}
+document.addEventListener('click',e=>{if(!pkr.contains(e.target))cPicker();});
+
+function rFest(){
+  document.getElementById('yr-f').textContent=S.year;
+  const{all}=festYear(S.year,S.fc,S.fr),sorted=[...all].sort((a,b)=>a.key.localeCompare(b.key));
+  const el=document.getElementById('fl');let h='';
+  sorted.forEach(f=>{
+    const isR=S.fr.includes(f.key),pts=f.key.split('-'),ds=`${pts[2]}/${pts[1]}/${pts[0]}`;
+    const tag=f.ss?`<span class="ftag tss">Setmana Santa</span>`:f.custom?`<span class="ftag tcu">personalitzat</span>`:'';
+    h+=`<div class="fr${isR?' removed':''}">
+      <span class="fd">${ds}</span><span class="fn">${f.name}${tag}</span>
+      <span class="fdel${isR?' restore':''}" data-k="${f.key}" data-a="${isR?'r':'d'}" title="${isR?'Restaurar':'Eliminar'}">${isR?'↩':'×'}</span>
+    </div>`;
+  });
+  el.innerHTML=h||'<p style="font-size:13px;color:var(--text2)">No hi ha festius.</p>';
+  el.querySelectorAll('.fdel').forEach(b=>b.addEventListener('click',()=>{
+    const k=b.dataset.k,a=b.dataset.a;
+    if(a==='d'){if(!S.fr.includes(k))S.fr.push(k);}else{S.fr=S.fr.filter(x=>x!==k);}
+    persist();rAll();
+  }));
+}
+
+document.getElementById('btn-add').addEventListener('click',()=>{
+  const dv=document.getElementById('nd').value,nv=document.getElementById('nn').value.trim();
+  if(!dv||!nv)return;
+  const y=parseInt(dv.split('-')[0]);
+  if(S.fc.find(f=>f.key===dv))return;
+  S.fc.push({key:dv,name:nv,year:y});persist();rAll();
+  document.getElementById('nd').value='';document.getElementById('nn').value='';
+});
+
+function rCfg(){
+  const el=document.getElementById('cl');let h='';
+  S.permisos.forEach((p,i)=>{
+    const l=p.unidad==='hora'?'Hores totals':'Dies totals';
+    h+=`<div class="cr" style="--rc:${p.color}">
+      <span class="cdot" style="background:${p.color}"></span>
+      <span class="cname">${p.name}</span>
+      <div class="cfi"><label>${l}</label><input type="number" min="0" max="999" value="${p.total}" data-i="${i}"/></div>
+    </div>`;
+  });
+  el.innerHTML=h;
+  el.querySelectorAll('input').forEach(inp=>inp.addEventListener('input',()=>{S.permisos[+inp.dataset.i].total=+inp.value||0;}));
+}
+
+document.getElementById('btn-save').addEventListener('click',()=>{
+  persist();rAll();
+  const m=document.getElementById('sok');m.classList.add('show');setTimeout(()=>m.classList.remove('show'),2000);
+});
+
+document.getElementById('btn-exp').addEventListener('click',()=>{
+  const b=new Blob([JSON.stringify({year:S.year,permisos:S.permisos,marcados:S.marcados,fc:S.fc,fr:S.fr},null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`calendari_upc_${S.year}.json`;a.click();
+});
+document.getElementById('btn-imp').addEventListener('click',()=>document.getElementById('fi').click());
+document.getElementById('fi').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      const d=JSON.parse(ev.target.result);
+      if(d.permisos)S.permisos=d.permisos;if(d.marcados)S.marcados=d.marcados;
+      if(d.fc)S.fc=d.fc;if(d.fr)S.fr=d.fr;if(d.year)S.year=d.year;
+      persist();rAll();
+    }catch(e){alert('Error en importar el fitxer JSON.');}
+  };
+  r.readAsText(f);e.target.value='';
+});
+
+document.getElementById('yr-prev').addEventListener('click',()=>{S.year--;persist();rAll();});
+document.getElementById('yr-next').addEventListener('click',()=>{S.year++;persist();rAll();});
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');document.getElementById('view-'+t.dataset.tab).classList.add('active');
+}));
+
+function rAll(){
+  document.getElementById('yr-label').textContent=S.year;
+  rLeg();rCards();rCal();rFest();rCfg();
+}
+rAll();
+</script>
+</body>
+</html>
