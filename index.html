@@ -176,7 +176,7 @@ body{font-family:'Open Sans',sans-serif;background:var(--bg);color:var(--text);m
 <div class="pkr" id="pkr"></div>
 
 <script>
-const SK='cal_laboral_upc_v3';
+const SK='cal_laboral_upc_v5';
 const DP=[
   {id:'vac',    name:'Vacances',                   total:22,unidad:'día', color:'#007BC4'},
   {id:'va',     name:'Vacances antiguitat',         total:3, unidad:'día', color:'#1ABC9C'},
@@ -232,10 +232,18 @@ if(sv){
 }
 function persist(){save({year:S.year,permisos:S.permisos,marcados:S.marcados,fc:S.fc,fr:S.fr});}
 
+function isHora(pid){const p=S.permisos.find(x=>x.id===pid);return p&&p.unidad==='hora';}
 function consumed(){
   const c={};S.permisos.forEach(p=>c[p.id]=0);
   const fm=fmap(S.year,S.fc,S.fr);
-  Object.entries(S.marcados).forEach(([k,pid])=>{if(!fm[k]&&c[pid]!==undefined)c[pid]++;});
+  Object.entries(S.marcados).forEach(([k,v])=>{
+    if(fm[k])return;
+    const pid=typeof v==='object'?v.pid:v;
+    const hrs=typeof v==='object'?v.h:null;
+    if(c[pid]===undefined)return;
+    if(isHora(pid)&&hrs!=null)c[pid]=+(c[pid]+hrs).toFixed(2);
+    else if(!isHora(pid))c[pid]++;
+  });
   return c;
 }
 
@@ -250,7 +258,7 @@ function rCards(){
   const el=document.getElementById('p-row'),c=consumed();
   let h='';
   S.permisos.forEach(p=>{
-    const cs=c[p.id]||0,rs=Math.max(0,p.total-cs),pct=p.total>0?Math.min(100,Math.round(cs/p.total*100)):0,u=p.unidad==='hora'?'h':'d';
+    const cs=+(c[p.id]||0).toFixed(2),rs=+Math.max(0,p.total-cs).toFixed(2),pct=p.total>0?Math.min(100,Math.round(cs/p.total*100)):0,u=p.unidad==='hora'?'h':'d';
     h+=`<div class="pc" style="--cc:${p.color}">
       <div class="ph"><span class="pdot" style="background:${p.color}"></span><span class="pname">${p.name}</span></div>
       <div class="pnums"><span class="prest">${rs}<s> ${u}</s></span><span class="pused">${cs}/${p.total}</span></div>
@@ -271,11 +279,11 @@ function rCal(){
     for(let d=1;d<=days;d++){
       const dw=new Date(S.year,m,d).getDay(),we=dw===0||dw===6;
       const k=`${S.year}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      const fest=fm[k],marc=S.marcados[k],perm=marc?S.permisos.find(p=>p.id===marc):null;
+      const fest=fm[k],mv=S.marcados[k],marc=mv?(typeof mv==='object'?mv.pid:mv):null,perm=marc?S.permisos.find(p=>p.id===marc):null;
       let bg='',cls='dc';
       if(fest){bg='#E74C3C';cls+=' df';}else if(perm){bg=perm.color;cls+=' dp';}else if(we)cls+=' dw';
       if(k===tk)cls+=' dt';
-      h+=`<div class="${cls}" style="${bg?'background:'+bg+';':''}" data-k="${k}" data-f="${fest||''}" data-p="${marc||''}">${d}</div>`;
+      const hv=mv&&typeof mv==='object'&&mv.h?hToDisplay(mv.h):'';h+=`<div class="${cls}" style="${bg?'background:'+bg+';':''}" data-k="${k}" data-f="${fest||''}" data-p="${marc||''}">${d}${hv?'<span style="font-size:7px;display:block;line-height:1;margin-top:-1px;opacity:0.9">'+hv+'</span>':''}</div>`;
     }
     h+=`</div></div>`;
   }
@@ -288,7 +296,15 @@ function rCal(){
 const tip=document.getElementById('tip');
 function sTip(e){
   const f=e.target.dataset.f,p=e.target.dataset.p;let t='';
-  if(f)t=f;else if(p){const x=S.permisos.find(x=>x.id===p);if(x)t=x.name;}
+  if(f)t=f;
+  else if(p){
+    const x=S.permisos.find(x=>x.id===p);
+    if(x){
+      t=x.name;
+      const v=S.marcados[e.target.dataset.k];
+      if(x.unidad==='hora'&&typeof v==='object'&&v.h)t+=` · ${hToDisplay(v.h)}`;
+    }
+  }
   if(!t)return;
   tip.textContent=t;tip.style.display='block';tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-30)+'px';
 }
@@ -297,17 +313,60 @@ function hTip(){tip.style.display='none';}
 const pkr=document.getElementById('pkr');let pk=null;
 function hClick(e){if(e.target.dataset.f)return;pk=e.target.dataset.k;sPicker(e.clientX,e.clientY,pk);e.stopPropagation();}
 function sPicker(x,y,k){
-  const cur=S.marcados[k]||null;
+  const v=S.marcados[k]||null;
+  const curPid=v?(typeof v==='object'?v.pid:v):null;
   let h=`<div class="pkt">Assignar permís</div>`;
   S.permisos.forEach(p=>{
-    h+=`<div class="pko" style="${cur===p.id?'font-weight:700;':''}" data-pid="${p.id}"><span class="pkd" style="background:${p.color}"></span>${p.name}</div>`;
+    const isCur=curPid===p.id;
+    const curH=isCur&&typeof v==='object'&&v.h?` <span style="color:var(--text3);font-size:11px">(${hToDisplay(v.h)})</span>`:'';
+    h+=`<div class="pko" style="${isCur?'font-weight:700;':''}" data-pid="${p.id}" data-hora="${p.unidad==='hora'?'1':'0'}"><span class="pkd" style="background:${p.color}"></span>${p.name}${curH}</div>`;
   });
-  if(cur)h+=`<div class="pkdiv"></div><div class="pkc" id="pkc">Treure permís</div>`;
+  if(curPid)h+=`<div class="pkdiv"></div><div class="pkc" id="pkc">Treure permís</div>`;
   pkr.innerHTML=h;
-  const vw=window.innerWidth,vh=window.innerHeight,pw=220,ph=S.permisos.length*36+70;
+  const vw=window.innerWidth,vh=window.innerHeight,pw=230,ph=S.permisos.length*36+70;
   pkr.style.left=Math.min(x+4,vw-pw-8)+'px';pkr.style.top=Math.min(y+4,vh-ph-8)+'px';pkr.style.display='block';
-  pkr.querySelectorAll('.pko').forEach(o=>o.addEventListener('click',()=>{S.marcados[pk]=o.dataset.pid;persist();cPicker();rAll();}));
+  pkr.querySelectorAll('.pko').forEach(o=>o.addEventListener('click',()=>{
+    const pid=o.dataset.pid,isHr=o.dataset.hora==='1';
+    if(isHr){showHoursInput(pk,pid,x,y);}
+    else{S.marcados[pk]=pid;persist();cPicker();rAll();}
+  }));
   const cl=pkr.querySelector('#pkc');if(cl)cl.addEventListener('click',()=>{delete S.marcados[pk];persist();cPicker();rAll();});
+}
+function hToDisplay(totalH){
+  const h=Math.floor(totalH),m=Math.round((totalH-h)*60);
+  if(h>0&&m>0)return `${h}h ${m}m`;
+  if(h>0)return `${h}h`;
+  return `${m}m`;
+}
+function showHoursInput(k,pid,x,y){
+  const p=S.permisos.find(x=>x.id===pid);
+  const v=S.marcados[k];
+  const curTotal=v&&typeof v==='object'&&v.pid===pid?v.h:0;
+  const curHh=curTotal?Math.floor(curTotal):0;
+  const curMm=curTotal?Math.round((curTotal-curHh)*60):0;
+  pkr.innerHTML=`
+    <div class="pkt" style="color:${p.color}">${p.name}</div>
+    <div style="padding:6px 8px 4px;font-size:12px;color:var(--text2)">Temps usat aquest dia:</div>
+    <div style="padding:4px 8px 8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+      <input id="h-h" type="number" min="0" max="8" step="1" value="${curHh}"
+        style="width:54px;height:34px;border:1px solid var(--border2);border-radius:var(--rsm);padding:0 6px;font-size:14px;font-family:monospace;font-weight:700;color:var(--upc);background:var(--upc-light);outline:none;text-align:center"/>
+      <span style="font-size:13px;color:var(--text2);font-weight:600">h</span>
+      <input id="h-m" type="number" min="0" max="59" step="5" value="${curMm}"
+        style="width:54px;height:34px;border:1px solid var(--border2);border-radius:var(--rsm);padding:0 6px;font-size:14px;font-family:monospace;font-weight:700;color:var(--upc);background:var(--upc-light);outline:none;text-align:center"/>
+      <span style="font-size:13px;color:var(--text2);font-weight:600">min</span>
+      <button id="h-ok" style="height:34px;padding:0 12px;font-size:13px;font-weight:600;border:none;border-radius:var(--rsm);background:${p.color};color:#fff;cursor:pointer">OK</button>
+    </div>
+    <div class="pkdiv"></div>
+    <div class="pkc" id="h-back">← Tornar</div>`;
+  document.getElementById('h-h').focus();
+  document.getElementById('h-ok').addEventListener('click',()=>{
+    const hh=parseInt(document.getElementById('h-h').value)||0;
+    const mm=parseInt(document.getElementById('h-m').value)||0;
+    if(hh===0&&mm===0)return;
+    const totalH=+(hh+mm/60).toFixed(4);
+    S.marcados[k]={pid,h:totalH};persist();cPicker();rAll();
+  });
+  document.getElementById('h-back').addEventListener('click',()=>sPicker(x,y,k));
 }
 function cPicker(){pkr.style.display='none';pk=null;}
 document.addEventListener('click',e=>{if(!pkr.contains(e.target))cPicker();});
