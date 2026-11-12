@@ -385,8 +385,8 @@ function festYear(y,ext,rem){
 }
 function fmap(y,ext,rem){const m={};festYear(y,ext,rem).active.forEach(f=>m[f.key]=f.name);return m;}
 function load(){try{const s=localStorage.getItem(SK);if(s)return JSON.parse(s);}catch(e){}return null;}
-function persist(){try{localStorage.setItem(SK,JSON.stringify({year:S.year,permisos:S.permisos,marcados:S.marcados,fc:S.fc,fr:S.fr,cfg:S.cfg,notes:S.notes}));}catch(e){}
-  onPersist();}
+function persist(noSync){try{localStorage.setItem(SK,JSON.stringify({year:S.year,permisos:S.permisos,marcados:S.marcados,fc:S.fc,fr:S.fr,cfg:S.cfg,notes:S.notes}));}catch(e){}
+  if(!noSync)onPersist();}
 
 let syncSuppress=false;
 let slideDir=null,popKey=null,resFilter=null,resDesc=false;
@@ -419,7 +419,7 @@ if(d.notes)S.notes=d.notes;
 if(d.cfg)S.cfg=d.cfg;else if(d.permisos)S.cfg[S.year]=totalsOf();
 loadYearCfg(S.year);
 }
-function setYear(y){saveYearCfg();slideDir=y>S.year?'sr':'sl';S.year=y;loadYearCfg(y);persist();rAll();}
+function setYear(y){saveYearCfg();slideDir=y>S.year?'sr':'sl';S.year=y;loadYearCfg(y);persist(true);rAll();}
 const sv=load();
 if(sv)applyData(sv);else loadYearCfg(S.year);
 
@@ -921,17 +921,22 @@ async function dWrite(id,obj){
 }
 function payload(){saveYearCfg();return{year:S.year,permisos:S.permisos,marcados:S.marcados,fc:S.fc,fr:S.fr,cfg:S.cfg,notes:S.notes,ts:+lsGet(TSK)||Date.now()};}
 function localEmpty(){return !Object.keys(S.marcados).length&&!S.fc.length&&!S.fr.length&&!Object.keys(S.notes).length;}
+function coreHash(){
+  const o=JSON.stringify([S.marcados,S.fc,S.fr,S.notes,S.permisos.map(p=>[p.id,p.name,p.color,p.unidad,!!p.custom])]);
+  let h=5381;for(let i=0;i<o.length;i++)h=((h<<5)+h+o.charCodeAt(i))|0;return String(h);
+}
+let cntRemote=null;
 function getSynced(){try{return +(JSON.parse(lsGet(SYK)||'{}').ts)||0;}catch(e){return 0;}}
 async function gPush(fileId){
   const p=payload();if(!lsGet(TSK))lsSet(TSK,p.ts);
-  await dWrite(fileId,p);lsSet(SYK,JSON.stringify({ts:p.ts}));
+  await dWrite(fileId,p);lsSet(SYK,JSON.stringify({ts:p.ts,h:coreHash()}));cntRemote=Object.keys(p.marcados).length;
 }
 function gPull(rem){
   syncSuppress=true;
   const d=Object.assign({},rem);delete d.year;delete d.ts;
   applyData(d);persist();
   syncSuppress=false;
-  lsSet(TSK,rem.ts||Date.now());lsSet(SYK,JSON.stringify({ts:rem.ts||0}));
+  lsSet(TSK,rem.ts||Date.now());lsSet(SYK,JSON.stringify({ts:rem.ts||0,h:coreHash()}));
   rAll();
 }
 function gAsk(){
@@ -950,10 +955,11 @@ async function syncNow(){
   gBusy=true;setG('busy');
   try{
     const f=await dFind();
-    const loc=+lsGet(TSK)||0,syn=getSynced();
+    let loc=+lsGet(TSK)||0;const syn=getSynced();
+    try{const sh=JSON.parse(lsGet(SYK)||'{}').h;if(sh&&sh!==coreHash()&&loc<=syn){loc=Date.now();lsSet(TSK,loc);}}catch(e){}
     if(!f){await gPush(null);}
     else{
-      const rem=await dRead(f.id),rts=rem.ts||0;
+      const rem=await dRead(f.id),rts=rem.ts||0;cntRemote=Object.keys(rem.marcados||{}).length;
       if(!syn){
         if(localEmpty())gPull(rem);
         else{const c=await gAsk();if(c==='drive')gPull(rem);else await gPush(f.id);}
@@ -989,7 +995,7 @@ function rSync(msg){
   document.getElementById('btn-gs').style.display=conn?'':'none';
   document.getElementById('btn-gd').style.display=conn?'':'none';
   const st=document.getElementById('g-status');
-  st.textContent=!conn?'No connectat. Les dades només es guarden en aquest dispositiu.':gState==='ok'?'Connectat. Última sincronització: '+new Date(gLast).toLocaleTimeString('ca-ES',{hour:'2-digit',minute:'2-digit'}):gState==='busy'?'Sincronitzant…':gState==='offline'?'Sense connexió. Es tornarà a provar quan n\'hi hagi.':'No s\'ha pogut accedir a Google Drive'+(msg?' ('+msg+')':'')+'. Prem «Tornar a connectar».';
+  st.textContent=!conn?'No connectat. Les dades només es guarden en aquest dispositiu.':gState==='ok'?'Connectat. Última sincronització: '+new Date(gLast).toLocaleTimeString('ca-ES',{hour:'2-digit',minute:'2-digit'})+' · Dies marcats: aquí '+Object.keys(S.marcados).length+(cntRemote===null?'':' / Drive '+cntRemote):gState==='busy'?'Sincronitzant…':gState==='offline'?'Sense connexió. Es tornarà a provar quan n\'hi hagi.':'No s\'ha pogut accedir a Google Drive'+(msg?' ('+msg+')':'')+'. Prem «Tornar a connectar».';
 }
 document.getElementById('btn-gc').addEventListener('click',gConnect);
 document.getElementById('btn-gs').addEventListener('click',()=>syncNow());
