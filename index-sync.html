@@ -251,7 +251,7 @@ body{font-family:'Open Sans',system-ui,sans-serif;background:var(--bg);color:var
   </div>
 
   <div class="view active" id="view-cal">
-    <div class="tbar"><span class="schip" id="sync-chip"></span><span class="tlbl">Mode fosc</span><button class="tg theme-tg" role="switch" aria-checked="true" aria-label="Mode fosc"></button></div>
+    <div class="tbar"><span class="schip" id="sync-chip" style="cursor:pointer"></span><span class="tlbl">Mode fosc</span><button class="tg theme-tg" role="switch" aria-checked="true" aria-label="Mode fosc"></button></div>
     <div class="leg" id="leg"></div>
     <div class="prow" id="prow"></div>
     <div class="detail-panel" id="dp">
@@ -949,7 +949,17 @@ function gAsk(){
     document.getElementById('ga-l').onclick=()=>{closeModal();res('local');};
   });
 }
-function setG(st,msg){gState=st;rSync(msg);}
+let needArmed=false;
+function armReconnect(){
+  if(needArmed||lsGet(CK)!=='1')return;needArmed=true;
+  document.addEventListener('pointerdown',function h(){
+    needArmed=false;
+    if(gState!=='need'||lsGet(CK)!=='1')return;
+    setG('busy');
+    gToken(true).then(()=>syncNow()).catch(e=>setG('need',String(e&&e.message||e)));
+  },{once:true,capture:true});
+}
+function setG(st,msg){gState=st;rSync(msg);if(st==='need')armReconnect();}
 async function syncNow(){
   if(gBusy||lsGet(CK)!=='1')return;
   gBusy=true;setG('busy');
@@ -998,6 +1008,7 @@ function rSync(msg){
   st.textContent=!conn?'No connectat. Les dades només es guarden en aquest dispositiu.':gState==='ok'?'Connectat. Última sincronització: '+new Date(gLast).toLocaleTimeString('ca-ES',{hour:'2-digit',minute:'2-digit'})+' · Dies marcats: aquí '+Object.keys(S.marcados).length+(cntRemote===null?'':' / Drive '+cntRemote):gState==='busy'?'Sincronitzant…':gState==='offline'?'Sense connexió. Es tornarà a provar quan n\'hi hagi.':'No s\'ha pogut accedir a Google Drive'+(msg?' ('+msg+')':'')+'. Prem «Tornar a connectar».';
 }
 document.getElementById('btn-gc').addEventListener('click',gConnect);
+document.getElementById('sync-chip').addEventListener('click',()=>{if(gState==='need')gConnect();else syncNow();});
 document.getElementById('btn-gs').addEventListener('click',()=>syncNow());
 document.getElementById('btn-gd').addEventListener('click',gDisconnect);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&lsGet(CK)==='1'&&Date.now()-gLast>30000)syncNow();});
