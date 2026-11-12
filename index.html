@@ -215,6 +215,9 @@ body{font-family:'Open Sans',system-ui,sans-serif;background:var(--bg);color:var
 .cpl{padding:2px 10px 4px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.4px}
 .cpc{padding:0 10px 8px}
 .cpc input{width:100%;height:38px}
+.schip{font-size:10px;font-weight:700;color:var(--tx2);margin-right:auto;display:none}
+.schip.show{display:inline}
+.schip.err{color:#E67E22}
 </style>
 </head>
 <body>
@@ -248,7 +251,7 @@ body{font-family:'Open Sans',system-ui,sans-serif;background:var(--bg);color:var
   </div>
 
   <div class="view active" id="view-cal">
-    <div class="tbar"><span class="tlbl">Mode fosc</span><button class="tg theme-tg" role="switch" aria-checked="true" aria-label="Mode fosc"></button></div>
+    <div class="tbar"><span class="schip" id="sync-chip" style="cursor:pointer"></span><span class="tlbl">Mode fosc</span><button class="tg theme-tg" role="switch" aria-checked="true" aria-label="Mode fosc"></button></div>
     <div class="leg" id="leg"></div>
     <div class="prow" id="prow"></div>
     <div class="detail-panel" id="dp">
@@ -315,6 +318,16 @@ body{font-family:'Open Sans',system-ui,sans-serif;background:var(--bg);color:var
       <div class="trow" style="margin-top:10px"><span class="tlbl">Animacions: <b id="anim-lbl"></b></span><button class="tg" id="btn-anim" role="switch" aria-checked="true" aria-label="Animacions"></button></div>
     </div>
     <div class="exs">
+      <div class="sl">Sincronització amb Google Drive</div>
+      <p>Connecta el teu compte de Google (el de la UPC) per tenir les mateixes dades al mòbil i a l'ordinador. Les dades es desen en una carpeta privada de la teva pròpia Drive, que només aquesta aplicació pot llegir.</p>
+      <div style="display:flex;gap:7px;flex-wrap:wrap">
+        <button class="btn btnp" id="btn-gc">Connectar amb Google</button>
+        <button class="btn" id="btn-gs" style="display:none">Sincronitzar ara</button>
+        <button class="btn" id="btn-gd" style="display:none">Desconnectar</button>
+      </div>
+      <div class="nhint" id="g-status" style="font-size:11px;color:var(--tx2);margin-top:8px"></div>
+    </div>
+    <div class="exs">
       <div class="sl">Exportar / importar dades</div>
       <p>Exporta totes les dades (marcats, festius, configuració) a un fitxer JSON per fer còpia de seguretat o traslladar a un altre dispositiu.</p>
       <div style="display:flex;gap:7px;flex-wrap:wrap">
@@ -372,8 +385,10 @@ function festYear(y,ext,rem){
 }
 function fmap(y,ext,rem){const m={};festYear(y,ext,rem).active.forEach(f=>m[f.key]=f.name);return m;}
 function load(){try{const s=localStorage.getItem(SK);if(s)return JSON.parse(s);}catch(e){}return null;}
-function persist(){try{localStorage.setItem(SK,JSON.stringify({year:S.year,permisos:S.permisos,marcados:S.marcados,fc:S.fc,fr:S.fr,cfg:S.cfg,notes:S.notes}));}catch(e){}}
+function persist(noSync){try{localStorage.setItem(SK,JSON.stringify({year:S.year,permisos:S.permisos,marcados:S.marcados,fc:S.fc,fr:S.fr,cfg:S.cfg,notes:S.notes}));}catch(e){}
+  if(!noSync)onPersist();}
 
+let syncSuppress=false;
 let slideDir=null,popKey=null,resFilter=null,resDesc=false;
 const prevVals={},prevPct={};
 function esc(t){return String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -404,7 +419,7 @@ if(d.notes)S.notes=d.notes;
 if(d.cfg)S.cfg=d.cfg;else if(d.permisos)S.cfg[S.year]=totalsOf();
 loadYearCfg(S.year);
 }
-function setYear(y){saveYearCfg();slideDir=y>S.year?'sr':'sl';S.year=y;loadYearCfg(y);persist();rAll();}
+function setYear(y){saveYearCfg();slideDir=y>S.year?'sr':'sl';S.year=y;loadYearCfg(y);persist(true);rAll();}
 const sv=load();
 if(sv)applyData(sv);else loadYearCfg(S.year);
 
@@ -854,9 +869,162 @@ document.querySelectorAll('.theme-tg').forEach(b=>{b.classList.toggle('on',on);b
 document.getElementById('theme-lbl').textContent=on?'activat':'desactivat';
 }
 document.querySelectorAll('.theme-tg').forEach(b=>b.addEventListener('click',()=>setTheme(getTheme()==='dark'?'light':'dark')));
+// ---- Sincronització Google Drive (carpeta privada de l'app)
+const GCID='977834546961-hgf9qtpmsluknn81fsp8r9a2rhpc0cf3.apps.googleusercontent.com';
+const GSCOPE='https://www.googleapis.com/auth/drive.appdata';
+const DK='cal_upc_dirty',SYK='cal_upc_sync',CK='cal_upc_gconn',GFILE='calendari_upc.json';
+let gTok=null,gExp=0,gClient=null,gState='off',pushTimer=null,gBusy=false,gLast=0;
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+function lsSet(k,v){try{localStorage.setItem(k,String(v));}catch(e){}}
+function onPersist(){
+  if(syncSuppress)return;
+  lsSet(DK,'1');
+  if(lsGet(CK)==='1'){clearTimeout(pushTimer);pushTimer=setTimeout(()=>syncNow(),2000);}
+}
+function gLoad(){
+  return new Promise((res,rej)=>{
+    if(window.google&&google.accounts&&google.accounts.oauth2)return res();
+    let sc=document.getElementById('gsi');
+    if(!sc){sc=document.createElement('script');sc.id='gsi';sc.src='https://accounts.google.com/gsi/client';sc.async=true;document.head.appendChild(sc);}
+    sc.addEventListener('load',()=>res());sc.addEventListener('error',()=>{sc.remove();rej(new Error('offline'));});
+  });
+}
+function gToken(interactive){
+  return gLoad().then(()=>new Promise((res,rej)=>{
+    if(!gClient)gClient=google.accounts.oauth2.initTokenClient({client_id:GCID,scope:GSCOPE,callback:()=>{}});
+    gClient.callback=r=>{if(r.error)return rej(new Error(r.error));gTok=r.access_token;gExp=Date.now()+((+r.expires_in||3600)-60)*1000;res(gTok);};
+    gClient.error_callback=e=>rej(new Error((e&&e.type)||'popup'));
+    gClient.requestAccessToken({prompt:interactive?'':'none'});
+  }));
+}
+function ensureTok(){return(gTok&&Date.now()<gExp)?Promise.resolve(gTok):gToken(false);}
+async function dApi(url,opt){
+  const t=await ensureTok();
+  opt=opt||{};opt.headers=Object.assign({Authorization:'Bearer '+t},opt.headers||{});
+  const r=await fetch(url,opt);
+  if(r.status===401){gTok=null;throw new Error('auth');}
+  if(!r.ok)throw new Error('http'+r.status);
+  return r;
+}
+async function dFind(){
+  const q=encodeURIComponent("name='"+GFILE+"'");
+  const r=await dApi('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q='+q+'&fields=files(id,modifiedTime)');
+  const j=await r.json();return j.files&&j.files[0]||null;
+}
+async function dRead(id){const r=await dApi('https://www.googleapis.com/drive/v3/files/'+id+'?alt=media');return r.json();}
+async function dWrite(id,obj){
+  const body=JSON.stringify(obj);
+  if(id)return dApi('https://www.googleapis.com/upload/drive/v3/files/'+id+'?uploadType=media',{method:'PATCH',headers:{'Content-Type':'application/json'},body});
+  const b='cal_upc_bnd';
+  const mp='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify({name:GFILE,parents:['appDataFolder']})+'\r\n--'+b+'\r\nContent-Type: application/json\r\n\r\n'+body+'\r\n--'+b+'--';
+  return dApi('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:mp});
+}
+function payload(rev){saveYearCfg();return{year:S.year,permisos:S.permisos,marcados:S.marcados,fc:S.fc,fr:S.fr,cfg:S.cfg,notes:S.notes,ts:Date.now(),rev:rev};}
+function localEmpty(){return !Object.keys(S.marcados).length&&!S.fc.length&&!S.fr.length&&!Object.keys(S.notes).length;}
+function hashOf(o){
+  const j=JSON.stringify([o.marcados||{},o.fc||[],o.fr||[],o.notes||{},(o.permisos||[]).map(p=>[p.id,p.name,p.color,p.unidad,!!p.custom])]);
+  let h=5381;for(let i=0;i<j.length;i++)h=((h<<5)+h+j.charCodeAt(i))|0;return String(h);
+}
+function coreHash(){return hashOf(S);}
+let cntRemote=null;
+function myBase(){try{return JSON.parse(lsGet(SYK)||'{}');}catch(e){return{};}}
+function setBase(rev){lsSet(SYK,JSON.stringify({rev:rev,h:coreHash()}));lsSet(DK,'0');}
+function isDirty(){const b=myBase();return lsGet(DK)==='1'||(b.h!==undefined&&b.h!==coreHash());}
+async function gPush(fileId,remRev){
+  const p=payload((remRev||0)+1);
+  await dWrite(fileId,p);setBase(p.rev);cntRemote=Object.keys(p.marcados).length;
+}
+function gPull(rem){
+  syncSuppress=true;
+  const d=Object.assign({},rem);delete d.year;delete d.ts;delete d.rev;
+  applyData(d);persist(true);
+  syncSuppress=false;
+  setBase(rem.rev||0);cntRemote=Object.keys(rem.marcados||{}).length;
+  rAll();
+}
+function gAsk(nl,nr){
+  return new Promise(res=>{
+    curKey=null;
+    modal.innerHTML='<div class="mkt">Dades diferents</div><div class="mtxt">Hi ha dades a Google Drive ('+nr+' dies marcats) i també en aquest dispositiu ('+nl+' dies marcats), i són diferents. Quines vols conservar? Les altres es perdran.</div>'
+      +'<div class="mbtns" style="flex-direction:column"><button class="btn btnp" id="ga-d">Usar les de Drive</button><button class="btn" id="ga-l">Usar les d\'aquest dispositiu</button></div>';
+    overlay.classList.add('show');
+    document.getElementById('ga-d').onclick=()=>{closeModal();res('drive');};
+    document.getElementById('ga-l').onclick=()=>{closeModal();res('local');};
+  });
+}
+let needArmed=false;
+function armReconnect(){
+  if(needArmed||lsGet(CK)!=='1')return;needArmed=true;
+  document.addEventListener('pointerdown',function h(){
+    needArmed=false;
+    if(gState!=='need'||lsGet(CK)!=='1')return;
+    setG('busy');
+    gToken(true).then(()=>syncNow()).catch(e=>setG('need',String(e&&e.message||e)));
+  },{once:true,capture:true});
+}
+function setG(st,msg){gState=st;rSync(msg);if(st==='need')armReconnect();}
+async function syncNow(){
+  if(gBusy||lsGet(CK)!=='1')return;
+  gBusy=true;setG('busy');
+  try{
+    const f=await dFind();
+    if(!f){await gPush(null,0);}
+    else{
+      const rem=await dRead(f.id),remRev=rem.rev||0;cntRemote=Object.keys(rem.marcados||{}).length;
+      const b=myBase(),nl=Object.keys(S.marcados).length;
+      const ask=async()=>{const c=await gAsk(nl,cntRemote);if(c==='drive')gPull(rem);else await gPush(f.id,remRev);};
+      if(b.rev===undefined){
+        if(localEmpty())gPull(rem);
+        else if(hashOf(rem)===coreHash())setBase(remRev);
+        else await ask();
+      }else{
+        const rc=remRev!==b.rev,lc=isDirty();
+        if(rc&&!lc)gPull(rem);
+        else if(!rc&&lc)await gPush(f.id,remRev);
+        else if(rc&&lc){if(hashOf(rem)===coreHash())setBase(remRev);else await ask();}
+      }
+    }
+    gLast=Date.now();setG('ok');
+  }catch(e){
+    const m=String(e&&e.message||e);
+    setG(m==='offline'||m==='Failed to fetch'?'offline':'need',m);
+  }finally{gBusy=false;}
+}
+async function gConnect(){
+  try{
+    setG('busy');await gToken(true);
+    lsSet(CK,'1');await syncNow();
+  }catch(e){setG(lsGet(CK)==='1'?'need':'off',String(e&&e.message||e));}
+}
+function gDisconnect(){
+  try{if(gTok&&window.google&&google.accounts)google.accounts.oauth2.revoke(gTok,()=>{});}catch(e){}
+  gTok=null;gExp=0;try{localStorage.removeItem(CK);localStorage.removeItem(SYK);}catch(e){}
+  setG('off');
+}
+function rSync(msg){
+  const conn=lsGet(CK)==='1',chip=document.getElementById('sync-chip');
+  const T={off:'',busy:'☁ Sincronitzant…',ok:'☁ Sincronitzat',offline:'⚠ Sense connexió',need:'⚠ Cal tornar a connectar'};
+  chip.textContent=conn?T[gState]||'':'';
+  chip.classList.toggle('show',conn&&!!chip.textContent);
+  chip.classList.toggle('err',gState==='offline'||gState==='need');
+  document.getElementById('btn-gc').style.display=conn&&gState!=='need'?'none':'';
+  document.getElementById('btn-gc').textContent=conn?'Tornar a connectar':'Connectar amb Google';
+  document.getElementById('btn-gs').style.display=conn?'':'none';
+  document.getElementById('btn-gd').style.display=conn?'':'none';
+  const st=document.getElementById('g-status');
+  st.textContent=!conn?'No connectat. Les dades només es guarden en aquest dispositiu.':gState==='ok'?'Connectat. Última sincronització: '+new Date(gLast).toLocaleTimeString('ca-ES',{hour:'2-digit',minute:'2-digit'})+' · Dies marcats: aquí '+Object.keys(S.marcados).length+(cntRemote===null?'':' / Drive '+cntRemote):gState==='busy'?'Sincronitzant…':gState==='offline'?'Sense connexió. Es tornarà a provar quan n\'hi hagi.':'No s\'ha pogut accedir a Google Drive'+(msg?' ('+msg+')':'')+'. Prem «Tornar a connectar».';
+}
+document.getElementById('btn-gc').addEventListener('click',gConnect);
+document.getElementById('sync-chip').addEventListener('click',()=>{if(gState==='need')gConnect();else syncNow();});
+document.getElementById('btn-gs').addEventListener('click',()=>syncNow());
+document.getElementById('btn-gd').addEventListener('click',gDisconnect);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&lsGet(CK)==='1'&&Date.now()-gLast>30000)syncNow();});
+window.addEventListener('online',()=>{if(lsGet(CK)==='1')syncNow();});
+if(lsGet(CK)==='1')setTimeout(syncNow,800);
+
 function rAll(){
   document.getElementById('yl').textContent=S.year;
-  rLeg();rCards();rCal();rRes();rFest();rCfg();rNotes();rTheme();rAnim();renderNpSw();
+  rLeg();rCards();rCal();rRes();rFest();rCfg();rNotes();rTheme();rAnim();renderNpSw();rSync();
 }
 rAll();
 </script>
