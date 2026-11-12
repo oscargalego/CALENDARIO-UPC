@@ -872,13 +872,13 @@ document.querySelectorAll('.theme-tg').forEach(b=>b.addEventListener('click',()=
 // ---- Sincronització Google Drive (carpeta privada de l'app)
 const GCID='977834546961-hgf9qtpmsluknn81fsp8r9a2rhpc0cf3.apps.googleusercontent.com';
 const GSCOPE='https://www.googleapis.com/auth/drive.appdata';
-const TSK='cal_upc_ts',SYK='cal_upc_sync',CK='cal_upc_gconn',GFILE='calendari_upc.json';
+const DK='cal_upc_dirty',SYK='cal_upc_sync',CK='cal_upc_gconn',GFILE='calendari_upc.json';
 let gTok=null,gExp=0,gClient=null,gState='off',pushTimer=null,gBusy=false,gLast=0;
 function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
 function lsSet(k,v){try{localStorage.setItem(k,String(v));}catch(e){}}
 function onPersist(){
   if(syncSuppress)return;
-  lsSet(TSK,Date.now());
+  lsSet(DK,'1');
   if(lsGet(CK)==='1'){clearTimeout(pushTimer);pushTimer=setTimeout(()=>syncNow(),2000);}
 }
 function gLoad(){
@@ -919,30 +919,33 @@ async function dWrite(id,obj){
   const mp='--'+b+'\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n'+JSON.stringify({name:GFILE,parents:['appDataFolder']})+'\r\n--'+b+'\r\nContent-Type: application/json\r\n\r\n'+body+'\r\n--'+b+'--';
   return dApi('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',{method:'POST',headers:{'Content-Type':'multipart/related; boundary='+b},body:mp});
 }
-function payload(){saveYearCfg();return{year:S.year,permisos:S.permisos,marcados:S.marcados,fc:S.fc,fr:S.fr,cfg:S.cfg,notes:S.notes,ts:+lsGet(TSK)||Date.now()};}
+function payload(rev){saveYearCfg();return{year:S.year,permisos:S.permisos,marcados:S.marcados,fc:S.fc,fr:S.fr,cfg:S.cfg,notes:S.notes,ts:Date.now(),rev:rev};}
 function localEmpty(){return !Object.keys(S.marcados).length&&!S.fc.length&&!S.fr.length&&!Object.keys(S.notes).length;}
-function coreHash(){
-  const o=JSON.stringify([S.marcados,S.fc,S.fr,S.notes,S.permisos.map(p=>[p.id,p.name,p.color,p.unidad,!!p.custom])]);
-  let h=5381;for(let i=0;i<o.length;i++)h=((h<<5)+h+o.charCodeAt(i))|0;return String(h);
+function hashOf(o){
+  const j=JSON.stringify([o.marcados||{},o.fc||[],o.fr||[],o.notes||{},(o.permisos||[]).map(p=>[p.id,p.name,p.color,p.unidad,!!p.custom])]);
+  let h=5381;for(let i=0;i<j.length;i++)h=((h<<5)+h+j.charCodeAt(i))|0;return String(h);
 }
+function coreHash(){return hashOf(S);}
 let cntRemote=null;
-function getSynced(){try{return +(JSON.parse(lsGet(SYK)||'{}').ts)||0;}catch(e){return 0;}}
-async function gPush(fileId){
-  const p=payload();if(!lsGet(TSK))lsSet(TSK,p.ts);
-  await dWrite(fileId,p);lsSet(SYK,JSON.stringify({ts:p.ts,h:coreHash()}));cntRemote=Object.keys(p.marcados).length;
+function myBase(){try{return JSON.parse(lsGet(SYK)||'{}');}catch(e){return{};}}
+function setBase(rev){lsSet(SYK,JSON.stringify({rev:rev,h:coreHash()}));lsSet(DK,'0');}
+function isDirty(){const b=myBase();return lsGet(DK)==='1'||(b.h!==undefined&&b.h!==coreHash());}
+async function gPush(fileId,remRev){
+  const p=payload((remRev||0)+1);
+  await dWrite(fileId,p);setBase(p.rev);cntRemote=Object.keys(p.marcados).length;
 }
 function gPull(rem){
   syncSuppress=true;
-  const d=Object.assign({},rem);delete d.year;delete d.ts;
-  applyData(d);persist();
+  const d=Object.assign({},rem);delete d.year;delete d.ts;delete d.rev;
+  applyData(d);persist(true);
   syncSuppress=false;
-  lsSet(TSK,rem.ts||Date.now());lsSet(SYK,JSON.stringify({ts:rem.ts||0,h:coreHash()}));
+  setBase(rem.rev||0);cntRemote=Object.keys(rem.marcados||{}).length;
   rAll();
 }
-function gAsk(){
+function gAsk(nl,nr){
   return new Promise(res=>{
     curKey=null;
-    modal.innerHTML='<div class="mkt">Dades diferents</div><div class="mtxt">Hi ha dades a Google Drive i també en aquest dispositiu, i són diferents. Quines vols conservar? Les altres es perdran.</div>'
+    modal.innerHTML='<div class="mkt">Dades diferents</div><div class="mtxt">Hi ha dades a Google Drive ('+nr+' dies marcats) i també en aquest dispositiu ('+nl+' dies marcats), i són diferents. Quines vols conservar? Les altres es perdran.</div>'
       +'<div class="mbtns" style="flex-direction:column"><button class="btn btnp" id="ga-d">Usar les de Drive</button><button class="btn" id="ga-l">Usar les d\'aquest dispositiu</button></div>';
     overlay.classList.add('show');
     document.getElementById('ga-d').onclick=()=>{closeModal();res('drive');};
@@ -965,17 +968,21 @@ async function syncNow(){
   gBusy=true;setG('busy');
   try{
     const f=await dFind();
-    let loc=+lsGet(TSK)||0;const syn=getSynced();
-    try{const sh=JSON.parse(lsGet(SYK)||'{}').h;if(sh&&sh!==coreHash()&&loc<=syn){loc=Date.now();lsSet(TSK,loc);}}catch(e){}
-    if(!f){await gPush(null);}
+    if(!f){await gPush(null,0);}
     else{
-      const rem=await dRead(f.id),rts=rem.ts||0;cntRemote=Object.keys(rem.marcados||{}).length;
-      if(!syn){
+      const rem=await dRead(f.id),remRev=rem.rev||0;cntRemote=Object.keys(rem.marcados||{}).length;
+      const b=myBase(),nl=Object.keys(S.marcados).length;
+      const ask=async()=>{const c=await gAsk(nl,cntRemote);if(c==='drive')gPull(rem);else await gPush(f.id,remRev);};
+      if(b.rev===undefined){
         if(localEmpty())gPull(rem);
-        else{const c=await gAsk();if(c==='drive')gPull(rem);else await gPush(f.id);}
-      }else if(rts>syn&&loc<=syn)gPull(rem);
-      else if(rts>syn&&loc>syn){const c=await gAsk();if(c==='drive')gPull(rem);else await gPush(f.id);}
-      else if(loc>syn)await gPush(f.id);
+        else if(hashOf(rem)===coreHash())setBase(remRev);
+        else await ask();
+      }else{
+        const rc=remRev!==b.rev,lc=isDirty();
+        if(rc&&!lc)gPull(rem);
+        else if(!rc&&lc)await gPush(f.id,remRev);
+        else if(rc&&lc){if(hashOf(rem)===coreHash())setBase(remRev);else await ask();}
+      }
     }
     gLast=Date.now();setG('ok');
   }catch(e){
